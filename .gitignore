@@ -1,0 +1,6 @@
+*.xlsx
+results*
+*.png
+*.txt
+analyze*
+.idea*
