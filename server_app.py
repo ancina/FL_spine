@@ -1,262 +1,263 @@
-from flwr.common import ndarrays_to_parameters
-from model import CoordRegressionNetwork, _init_weights
-from config import Config
-from client_app import get_parameters
-import flwr as fl
-import torch
-from dataset import create_train_val_test_split
-from strategy import set_weights
-from training_utils import test
-from dataset import SpineDataset
+"""
+Federated learning server implementation for spine landmark detection.
 
-# Define number of federated rounds and create dataset splits.
-ROUNDS = Config.NUM_ROUNDS_FL
+This module defines the server-side components for federated learning, including
+evaluation functions and server configuration.
+"""
+import torch
+from torch.utils.data import DataLoader
+from typing import Dict, List, Tuple, Callable, Any
+
+import flwr as fl
+from flwr.common import ndarrays_to_parameters, Scalar, NDArrays
+
+from model import CoordRegressionNetwork
+from config import Config
+from dataset import SpineDataset, create_train_val_test_split
+from client_app import get_parameters
+from training_utils import test
+from strategy import set_weights
+
+# Create dataset splits once
 SPLITS = create_train_val_test_split(Config.DATA_DIR, debug=Config.DEBUG, train_ratio=0.8, val_ratio=0.1, seed=42)
 
 
-def get_evaluate_fn(testloader, device):
+def get_evaluate_fn(
+		testloader: DataLoader,
+		device: torch.device
+) -> Callable[[int, NDArrays, Dict[str, Scalar]], Tuple[float, Dict[str, Scalar]]]:
 	"""
-	Return a callback function for evaluating the global model on a test set.
+	Create a function for centralized evaluation of the global model.
 
 	Args:
-		testloader: DataLoader for the validation/test set.
-		device: The device to run evaluation on.
+		testloader: DataLoader for validation/test data
+		device: Device to run evaluation on
 
 	Returns:
-		A function that evaluates the global model and returns loss and metrics.
+		Function that evaluates the global model and returns loss/metrics
 	"""
 	
-	def evaluate(server_round, parameters_ndarrays, config):
+	def evaluate(
+			server_round: int,
+			parameters_ndarrays: NDArrays,
+			config: Dict[str, Scalar]
+	) -> Tuple[float, Dict[str, Scalar]]:
 		"""
-		Evaluate the global model for the given round.
+		Evaluate the global model on a validation dataset.
 
 		Args:
-			server_round: The current federated round.
-			parameters_ndarrays: Global model parameters.
-			config: Configuration dictionary (unused).
+			server_round: Current federated round
+			parameters_ndarrays: Global model parameters as NumPy arrays
+			config: Configuration dictionary
 
 		Returns:
-			Tuple of loss and a dictionary with additional metrics.
+			Tuple of (loss, metrics dictionary)
 		"""
-		# Instantiate and set up the model.
-		model = CoordRegressionNetwork(arch=Config.ARCH,
-		                               n_locations_global=28,
-		                               n_ch=1,
-		                               n_blocks=Config.N_BLOCKS).to(device)
+		# Initialize the model with the same architecture
+		model = CoordRegressionNetwork(
+			arch=Config.ARCH,
+			n_locations_global=28,
+			n_ch=1,
+			n_blocks=Config.N_BLOCKS
+		)
+		
+		# Set model weights from parameters
 		set_weights(model, parameters_ndarrays)
 		model.to(device)
+		
+		# Evaluate the model
 		loss = test(model, testloader, device)
+		
 		return loss, {'centralized_loss': loss}
 	
 	return evaluate
 
-def make_fit_config(run_config):
-    """
-    Create a fit_config function that returns a configuration dictionary for each round,
-    incorporating values from the provided run_config.
-    """
-    def fit_config(server_round: int):
-        config = {"server_round": server_round}
-        # Use different settings depending on the federated approach.
-        if run_config["fl_approach"] == "FedAvg":
-            # Retrieve the total rounds for FedOpt from run_config
-            #num_rounds = run_config["num_rounds_fedopt"]
-            config["local_epochs"] = Config.LOCAL_EPOCHS if server_round < 30 else int(Config.LOCAL_EPOCHS / 2)
-            config["lr"] = Config.LEARNING_RATE if server_round <= 20 else Config.LEARNING_RATE / (server_round ** 0.5)
-            
-        else:
-	        base_lr = 1e-4
-	        config["local_epochs"] = 3 if run_config["fl_approach"] == "FedOpt" else 8
-	        config["lr"] = base_lr / (server_round ** 0.5) if server_round > 1 else base_lr
-         
 
-        # Propagate FedProx settings from run_config.
-        config["use_fedprox"] = run_config["use_fedprox"]
-        config["proximal_mu"] = run_config["proximal_mu"]
-        return config
-    return fit_config
-
-
-def weighted_average(metrics):
+def weighted_average(
+		metrics: List[Tuple[int, Dict[str, float]]]
+) -> Dict[str, float]:
 	"""
-	Aggregate client metrics using a weighted average.
+	Aggregate evaluation metrics from clients using weighted average.
 
 	Args:
-		metrics: List of tuples, each containing the number of examples and a dict with 'loss'.
+		metrics: List of tuples (num_examples, metrics_dict)
 
 	Returns:
-		A dictionary with the aggregated 'federated_evaluate_loss'.
+		Dictionary with aggregated metrics
 	"""
+	# Extract values for weighted averaging
 	losses = [num_examples * m["loss"] for num_examples, m in metrics]
 	examples = [num_examples for num_examples, _ in metrics]
-	return {"federated_evaluate_loss": sum(losses) / sum(examples)}
+	
+	# Calculate weighted average
+	avg_loss = sum(losses) / sum(examples) if examples else 0.0
+	
+	return {"federated_evaluate_loss": avg_loss}
 
 
-def get_server_fn(strategy_class, save_suffix, fl_approach):
+def make_fit_config(run_config: Dict[str, Any]) -> Callable[[int], Dict[str, Scalar]]:
 	"""
-	Create a server function (to be used in run_federated_experiment) based on the provided strategy.
-
-	This function sets experiment-level configuration (including FedProx settings) and returns a
-	server function that instantiates the chosen strategy.
+	Create a function that returns training configuration for each round.
 
 	Args:
-		strategy_class: The custom federated strategy class (e.g., CustomFedAvg, CustomFedProx).
-		save_suffix: Unique suffix for saving results.
-		fl_approach: A string representing the federated approach (e.g., 'FedProx').
+		run_config: Experiment-level configuration
 
 	Returns:
-		A server function that returns ServerAppComponents.
+		Function that generates per-round configuration
 	"""
 	
-	def server_fn(context):
-		# Copy and update the experiment-level configuration.
+	def fit_config(server_round: int) -> Dict[str, Scalar]:
+		"""
+		Generate configuration for client training in the given round.
+
+		Args:
+			server_round: Current federated round
+
+		Returns:
+			Configuration dictionary for client training
+		"""
+		# Common configuration for all rounds
+		config = {"server_round": server_round}
+		
+		# Different settings based on federated approach
+		fl_approach = run_config.get("fl_approach", "FedAvg")
+		
+		if fl_approach == "FedAvg":
+			# Possibly reduce local epochs in later rounds
+			config["local_epochs"] = (
+				Config.LOCAL_EPOCHS if server_round < 30
+				else int(Config.LOCAL_EPOCHS / 2)
+			)
+			
+			# Learning rate decay
+			config["lr"] = (
+				Config.LEARNING_RATE if server_round <= 20
+				else Config.LEARNING_RATE / (server_round ** 0.5)
+			)
+		else:
+			# Base settings for other approaches (FedOpt, FedProx)
+			base_lr = 1e-4
+			config["local_epochs"] = 3 if fl_approach == "FedOpt" else 8
+			config["lr"] = base_lr / (server_round ** 0.5) if server_round > 1 else base_lr
+		
+		# FedProx settings
+		config["use_fedprox"] = run_config.get("use_fedprox", False)
+		config["proximal_mu"] = run_config.get("proximal_mu", 0.0)
+		
+		return config
+	
+	return fit_config
+
+
+def get_server_fn(
+		strategy_class: Any,
+		save_suffix: str,
+		fl_approach: str
+) -> Callable[[Dict[str, Any]], fl.server.ServerAppComponents]:
+	"""
+	Create a server function that configures the FL server for a specific strategy.
+
+	Args:
+		strategy_class: Class for the federated learning strategy
+		save_suffix: Suffix for saving results
+		fl_approach: String identifier for the federated approach
+
+	Returns:
+		Function that creates server components
+	"""
+	
+	def server_fn(context: Dict[str, Any]) -> fl.server.ServerAppComponents:
+		"""
+		Configure the server components for federated learning.
+
+		Args:
+			context: Context with server configuration
+
+		Returns:
+			ServerAppComponents with strategy and configuration
+		"""
+		# Get and update experiment-level configuration
 		run_config = context.run_config.copy()
 		run_config["save_suffix"] = save_suffix
 		run_config["fl_approach"] = fl_approach
-		# Set FedProx flags based on the chosen approach.
+		
+		# Configure FedProx settings
 		if fl_approach == 'FedProx':
 			run_config["use_fedprox"] = True
-			run_config["proximal_mu"] = 0.1  # Adjust as needed.
+			run_config["proximal_mu"] = 0.1
 		else:
 			run_config["use_fedprox"] = False
 			run_config["proximal_mu"] = 0.0
 		
-		# Create a fit_config function that incorporates run_config values.
+		# Create fit config function for the specific approach
 		fit_config_fn = make_fit_config(run_config)
 		
-		# Instantiate the global model and prepare initial parameters.
+		# Initialize global model
 		net = CoordRegressionNetwork(
 			arch=Config.ARCH,
 			n_locations_global=28,
 			n_ch=1,
 			n_blocks=Config.N_BLOCKS
 		)
-		_init_weights(net)
+		
+		# Get initial parameters
 		ndarrays = get_parameters(net)
 		parameters = ndarrays_to_parameters(ndarrays)
 		
-		# Prepare validation data.
+		# Create validation data loader for evaluation
 		val_data = SpineDataset(
 			Config.DATA_DIR,
 			SPLITS['val'],
 			mode='val'
 		)
 		val_loader = torch.utils.data.DataLoader(
-			val_data, batch_size=Config.BATCH_SIZE, shuffle=False, num_workers=Config.NUM_WORKERS
+			val_data,
+			batch_size=Config.BATCH_SIZE,
+			shuffle=False,
+			num_workers=Config.NUM_WORKERS
 		)
 		
-		# Instantiate the chosen federated strategy.
+		# Determine device for evaluation
+		device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+		
+		# Create evaluation function
+		evaluate_fn = get_evaluate_fn(testloader=val_loader, device=device)
+		
+		# Configure strategy based on approach
+		strategy_params = {
+			"run_config": run_config,
+			"fraction_fit": 1.0,
+			"fraction_evaluate": 1.0,
+			"min_fit_clients": 4,
+			"min_evaluate_clients": 4,
+			"min_available_clients": 4,
+			"on_fit_config_fn": fit_config_fn,
+			"initial_parameters": parameters,
+			"evaluate_fn": evaluate_fn,
+			"evaluate_metrics_aggregation_fn": weighted_average,
+		}
+		
+		# Add strategy-specific parameters
 		if fl_approach == 'FedProx':
-			strategy = strategy_class(
-				run_config=run_config,
-				fraction_fit=1.0,
-				fraction_evaluate=1.0,
-				min_fit_clients=4,
-				min_evaluate_clients=4,
-				min_available_clients=4,
-				on_fit_config_fn=fit_config_fn,
-				initial_parameters=parameters,
-				evaluate_fn=get_evaluate_fn(testloader = val_loader,
-				                            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-				evaluate_metrics_aggregation_fn=weighted_average,
-				proximal_mu=0.1  # Additional parameter for FedProx.
-			)
-		elif fl_approach == 'FedAvg':
-			strategy = strategy_class(
-				run_config=run_config,
-				fraction_fit=1.0,
-				fraction_evaluate=1.0,
-				min_fit_clients=4,
-				min_evaluate_clients=4,
-				min_available_clients=4,
-				on_fit_config_fn=fit_config_fn,
-				initial_parameters=parameters,
-				evaluate_fn=get_evaluate_fn(testloader = val_loader,
-											device=torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-				evaluate_metrics_aggregation_fn=weighted_average
-			)
-		else:
-			strategy = strategy_class(
-				run_config=run_config,
-				fraction_fit=1.0,
-				fraction_evaluate=1.0,
-				min_fit_clients=4,
-				min_evaluate_clients=4,
-				min_available_clients=4,
-				on_fit_config_fn=fit_config_fn,
-				initial_parameters=parameters,
-				evaluate_fn=get_evaluate_fn(testloader=val_loader,
-				                            device=torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-				evaluate_metrics_aggregation_fn=weighted_average,
-				eta = 1e-4,
-				eta_l = 1e-4,
-				tau = 1e-9
-			)
-		# Set the total number of FL rounds based on the approach.
-		if run_config["fl_approach"] == "FedAvg":
+			strategy_params["proximal_mu"] = 0.1
+		elif fl_approach == 'FedOpt':
+			strategy_params["eta"] = 1e-4
+			strategy_params["eta_l"] = 1e-4
+			strategy_params["tau"] = 1e-9
+		
+		# Create the strategy
+		strategy = strategy_class(**strategy_params)
+		
+		# Set number of rounds based on approach
+		if fl_approach == "FedAvg":
 			num_rounds = Config.NUM_ROUNDS_FL
 		else:
 			num_rounds = Config.NUM_ROUNDS_FL_OPT
 			run_config["num_rounds_fedopt"] = num_rounds
-			
 		
-		# Create server configuration.
+		# Create server configuration
 		config_server = fl.server.ServerConfig(num_rounds=num_rounds)
+		
 		return fl.server.ServerAppComponents(strategy=strategy, config=config_server)
 	
 	return server_fn
-
-
-# def server_fn(context: Context) -> fl.server.ServerAppComponents:
-#     """Construct components that set the ServerApp behaviour.
-#
-#     You can use the settings in `context.run_config` to parameterize the
-#     construction of all elements (e.g the strategy or the number of rounds)
-#     wrapped in the returned ServerAppComponents object.
-#     """
-#
-#     net = CoordRegressionNetwork(
-# 			arch=Config.ARCH,
-# 			n_locations_global=28,
-# 			n_ch=1,
-# 			n_blocks=Config.N_BLOCKS
-# 		)
-#
-#     _init_weights(net)
-#
-#     ndarrays = get_parameters(net)
-#
-#     parameters = ndarrays_to_parameters(ndarrays)
-#
-#     val_data = SpineDataset(
-# 	    Config.DATA_DIR,
-# 	    SPLITS['val'],
-# 	    mode='val'
-#     )
-#
-#     val_loader = torch.utils.data.DataLoader(
-# 	    val_data, batch_size=Config.BATCH_SIZE, shuffle=False, num_workers=Config.NUM_WORKERS
-#     )
-#
-#     # Define strategy
-#     strategy = CustomFedAvg(
-# 	    run_config=context.run_config,
-# 	    fraction_fit=1.0,
-# 	    fraction_evaluate=1.0,
-# 	    min_fit_clients=2,
-# 	    min_evaluate_clients=2,
-# 	    min_available_clients=4,
-# 	    on_fit_config_fn=fit_config,
-# 	    initial_parameters=parameters,
-#         evaluate_fn=get_evaluate_fn(val_loader,
-#         device=torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-#         evaluate_metrics_aggregation_fn=weighted_average
-# 	    #evaluate_fn=evaluate_centr
-# 	    #logger = my_logger
-# 	    # evaluate_metrics_aggregation_fn=weighted_average,
-#     )
-#
-#     # Configure the server for N rounds of training
-#     config = fl.server.ServerConfig(num_rounds=ROUNDS)
-#
-#     return fl.server.ServerAppComponents(strategy=strategy, config=config)

@@ -13,7 +13,7 @@ def extract_patient_ids(root_dir):
 	
 	df = pd.DataFrame(index=all_images)
 	# filter patients of the centers
-	df = df[df.index.str.startswith(('MAD', 'BCN', 'BOR', 'IST'))]
+	df = df[df.index.str.startswith(('MAD', 'BCN', 'BOR', 'IST', 'ZUR'))]
 	
 	# Extract patient and center identifiers
 	df['patient_id'] = df.index

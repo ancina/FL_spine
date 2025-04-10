@@ -1,31 +1,73 @@
+"""
+Configuration settings for spine landmark detection and federated learning experiments.
+"""
 from datetime import datetime
+from pathlib import Path
+
 
 class Config:
-	#DATA_DIR = '/cluster/work/bmdslab/ancina/ESSG/lumbar_dataset/'
-	DATA_DIR = '../../lumbar_dataset/'
-	BATCH_SIZE = 4
-	NUM_WORKERS = 0 # put to zero if debugging on laptop
-	LEARNING_RATE = 1e-4
-	NUM_EPOCHS = 10   # num epochs for non federated
-	NUM_ROUNDS_FL = 3
-	NUM_ROUNDS_FL_OPT = 10
-	LOCAL_EPOCHS = 2
-	SIGMA_T = 1.0
-	SMOOTHNESS_WEIGHT = 0.0
-	MODEL_CHECKPOINT_INTERVAL = 10
-	# Data
+	"""
+	Configuration class containing all settings for training and evaluation.
+
+	Settings are organized into categories:
+	- Data: Paths, dimensions, and dataset-related configs
+	- Model: Architecture and model parameters
+	- Training: Learning rates, epochs, batch sizes
+	- Augmentation: Data augmentation parameters
+	- Federated Learning: Parameters specific to federated experiments
+	- Output: Save paths and logging settings
+	"""
+	
+	# --- DATA SETTINGS ---
+	# Path to dataset (configurable for different environments)
+	DATA_DIR = Path('./data')
+	# Input image dimensions
 	IMAGE_SIZE = (768, 768)
+	# Use reduced dataset for debugging
 	DEBUG = True
 	
-	# Augmentation
-	AUG_BRIGHTNESS_CONTRAST_PROB = 0.8
-	AUG_NOISE_PROB = 0.5
-	AUG_SHIFT_LIMIT = 0.2
-	AUG_SCALE_LIMIT = 0.2
-	AUG_ROTATE_LIMIT = 15
-
+	# --- MODEL SETTINGS ---
+	# Backbone architecture ('hg1', 'hg2', 'hg8')
 	ARCH = 'hg2'
+	# Number of residual blocks in the hourglass module
 	N_BLOCKS = 2
+	# Gaussian sigma for coordinate regression
+	SIGMA_T = 1.0
 	
+	# --- TRAINING SETTINGS ---
+	# Mini-batch size
+	BATCH_SIZE = 4
+	# Number of data loading worker processes (0 for debugging)
+	NUM_WORKERS = 0
+	# Base learning rate
+	LEARNING_RATE = 1e-4
+	# Number of epochs for centralized/local training
+	NUM_EPOCHS = 2
+	# Frequency of saving model checkpoints
+	MODEL_CHECKPOINT_INTERVAL = 10
+	
+	# --- FEDERATED LEARNING SETTINGS ---
+	# Number of communication rounds for federated learning
+	NUM_ROUNDS_FL = 2
+	# Number of rounds for federated optimization
+	NUM_ROUNDS_FL_OPT = 2
+	# Number of local epochs per federated round
+	LOCAL_EPOCHS = 2
+	
+	# --- AUGMENTATION SETTINGS ---
+	# Probability of applying brightness/contrast adjustments
+	AUG_BRIGHTNESS_CONTRAST_PROB = 0.8
+	# Probability of adding noise
+	AUG_NOISE_PROB = 0.5
+	# Maximum shift as proportion of image size
+	AUG_SHIFT_LIMIT = 0.2
+	# Maximum scale change
+	AUG_SCALE_LIMIT = 0.2
+	# Maximum rotation angle in degrees
+	AUG_ROTATE_LIMIT = 15
+	
+	# --- OUTPUT SETTINGS ---
+	# Timestamp for unique run identification
 	TIMESTAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-	SAVE_DIR = f'./results_{ARCH}_{TIMESTAMP}'
+	# Directory for saving results
+	SAVE_DIR = Path(f'./results_{ARCH}_{TIMESTAMP}')
