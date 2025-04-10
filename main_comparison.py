@@ -317,9 +317,9 @@ def train_all_approaches(early_stopping_patience: int = 10) -> None:
     
     # 3. Train Federated Models (no early stopping)
     strategies = {
-        "FedProx": CustomFedProx,
+        #"FedProx": CustomFedProx,
         "FedAvg": CustomFedAvg,
-        "FedOpt": CustomFedOpt,
+        #"FedOpt": CustomFedOpt,
     }
     
     train_federated_models(device, strategies)

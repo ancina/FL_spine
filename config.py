@@ -20,11 +20,11 @@ class Config:
 	
 	# --- DATA SETTINGS ---
 	# Path to dataset (configurable for different environments)
-	DATA_DIR = Path('./data')
+	DATA_DIR = Path('/cluster/work/bmdslab/ancina/ESSG/lumbar_dataset/')
 	# Input image dimensions
 	IMAGE_SIZE = (768, 768)
 	# Use reduced dataset for debugging
-	DEBUG = True
+	DEBUG = False
 	
 	# --- MODEL SETTINGS ---
 	# Backbone architecture ('hg1', 'hg2', 'hg8')
@@ -42,21 +42,21 @@ class Config:
 	# Base learning rate
 	LEARNING_RATE = 1e-4
 	# Number of epochs for centralized/local training
-	NUM_EPOCHS = 2
+	NUM_EPOCHS = 100
 	# Frequency of saving model checkpoints
 	MODEL_CHECKPOINT_INTERVAL = 10
 	
 	# --- FEDERATED LEARNING SETTINGS ---
 	# Number of communication rounds for FedAvg
-	NUM_ROUNDS_FL = 2
+	NUM_ROUNDS_FL = 30
 	# Number of rounds for FedOpt
-	NUM_ROUNDS_FL_OPT = 2
+	NUM_ROUNDS_FL_OPT = 100
 	# Number of local epochs per federated round for FedAvg
-	LOCAL_EPOCHS = 2
+	LOCAL_EPOCHS = 10
 	# Number of local epochs per federated round for FedProx
-	LOCAL_EPOCHS_PROX = 2
+	LOCAL_EPOCHS_PROX = 8
 	# Number of local epochs per federated round for FedOpt
-	LOCAL_EPOCHS_OPT = 2
+	LOCAL_EPOCHS_OPT = 3
 	
 	# --- AUGMENTATION SETTINGS ---
 	# Probability of applying brightness/contrast adjustments
