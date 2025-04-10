@@ -309,10 +309,10 @@ def run_inference(
 	"""
 	# Default values
 	if approaches is None:
-		approaches = ['centralized_model', 'local_models', 'federated_FedProx']
+		approaches = ['centralized_model', 'local_models', 'federated_FedAvg', 'federated_FedOpt', 'federated_FedProx']
 	
 	if centers is None:
-		centers = ['BOR', 'BCN', 'IST', 'MAD', 'ZUR']
+		centers = ['BOR', 'BCN', 'IST', 'MAD','ZUR']
 	
 	# Ensure directories exist
 	os.makedirs(results_dir, exist_ok=True)
@@ -394,22 +394,24 @@ def run_inference(
 def main():
 	"""Main entry point for the inference script."""
 	# Paths configuration
-	base_dir = Path(__file__).parent.absolute()
-	data_dir = base_dir / "data" / "images"
+	base_dir = Path('/Users/ancina/Documents/ESSG project/lumbar_dataset/')
+	data_dir = base_dir / "images"
 	
 	# Results directory
-	results_dir = base_dir / "results" / "inference"
+	results_dir = '/Users/ancina/Documents/ESSG project/FederatedLearningTests/results_refactor'
 	os.makedirs(results_dir, exist_ok=True)
 	
 	# Training directory with saved models. Put the name of the created folder starting with results_namemodel_....
-	training_dir = base_dir / "results_hg2_latest"
+	cwd = Path(__file__).parent.absolute()
+	training_dir = cwd / "results_hg2_2025-02-16_21-28-46"
 	
 	# Approaches to evaluate
 	approaches = ['centralized_model',
 	              'local_models',
 	              'federated_FedAvg',
 	              'federated_FedOpt',
-	              'federated_FedProx']
+	              'federated_FedProx'
+	              ]
 	
 	# Run inference
 	run_inference(
