@@ -3,7 +3,7 @@ Script to generate synthetic spine X-ray data for testing.
 
 This script creates:
 - A data structure with images and annotations folders
-- 20 synthetic X-ray images (5 for each center: MAD, BCN, BOR, IST)
+- 20 synthetic X-ray images (5 for each center: MAD, BCN, BOR, IST, ZUR)
 - 20 matching annotation files with spine landmark coordinates
 """
 import os
@@ -171,7 +171,7 @@ def generate_dataset(base_path, num_samples_per_center=5):
 	images_dir, annotations_dir = create_directory_structure(base_path)
 	
 	# Centers to generate data for
-	centers = ['MAD', 'BCN', 'BOR', 'IST']
+	centers = ['MAD', 'BCN', 'BOR', 'IST', 'ZUR']
 	
 	# Keep track of filenames to avoid duplicates
 	filenames = set()
@@ -210,7 +210,7 @@ def generate_dataset(base_path, num_samples_per_center=5):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description="Generate synthetic spine X-ray dataset")
 	parser.add_argument("--output", default="./data", help="Base directory for the generated dataset")
-	parser.add_argument("--samples", type=int, default=20, help="Number of samples per center")
+	parser.add_argument("--samples", type=int, default=40, help="Number of samples per center")
 	
 	args = parser.parse_args()
 	

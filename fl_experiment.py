@@ -15,7 +15,7 @@ def run_federated_experiment(
 		client_fn,
 		server_fn,
 		device: torch.device,
-		num_clients: int = 4,
+		num_clients: int = 5,
 		verbose: bool = True
 ) -> None:
 	"""

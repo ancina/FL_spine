@@ -12,11 +12,13 @@ federatedlearning/
 ├── dataset.py              # Dataset loading and preprocessing
 ├── inference.py            # Inference module
 ├── fl_experiment.py        # Federated learning experiment runner
+├── generate_demo_data.py   # Generate some fake data for testing
 ├── main_comparison.py      # Main script to compare training approaches
 ├── model.py                # Landmark detection model definitions
 ├── server_app.py           # Federated learning server implementation
 ├── strategy.py             # Custom federated learning strategies
 ├── training_utils.py       # Training and evaluation utilities
+├── visualise_data.py       # visualise the fake data generated
 ├── data/                   # Sample data directory
 │     ├── images/           # Sample X-ray images
 │     └── annotations/      # Landmark annotations

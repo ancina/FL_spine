@@ -47,12 +47,16 @@ class Config:
 	MODEL_CHECKPOINT_INTERVAL = 10
 	
 	# --- FEDERATED LEARNING SETTINGS ---
-	# Number of communication rounds for federated learning
+	# Number of communication rounds for FedAvg
 	NUM_ROUNDS_FL = 2
-	# Number of rounds for federated optimization
+	# Number of rounds for FedOpt
 	NUM_ROUNDS_FL_OPT = 2
-	# Number of local epochs per federated round
+	# Number of local epochs per federated round for FedAvg
 	LOCAL_EPOCHS = 2
+	# Number of local epochs per federated round for FedProx
+	LOCAL_EPOCHS_PROX = 2
+	# Number of local epochs per federated round for FedOpt
+	LOCAL_EPOCHS_OPT = 2
 	
 	# --- AUGMENTATION SETTINGS ---
 	# Probability of applying brightness/contrast adjustments

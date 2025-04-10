@@ -137,7 +137,7 @@ def make_fit_config(run_config: Dict[str, Any]) -> Callable[[int], Dict[str, Sca
 		else:
 			# Base settings for other approaches (FedOpt, FedProx)
 			base_lr = 1e-4
-			config["local_epochs"] = 3 if fl_approach == "FedOpt" else 8
+			config["local_epochs"] = Config.LOCAL_EPOCHS_OPT if fl_approach == "FedOpt" else Config.LOCAL_EPOCHS_PROX
 			config["lr"] = base_lr / (server_round ** 0.5) if server_round > 1 else base_lr
 		
 		# FedProx settings
@@ -228,9 +228,9 @@ def get_server_fn(
 			"run_config": run_config,
 			"fraction_fit": 1.0,
 			"fraction_evaluate": 1.0,
-			"min_fit_clients": 4,
-			"min_evaluate_clients": 4,
-			"min_available_clients": 4,
+			"min_fit_clients": 5,
+			"min_evaluate_clients": 5,
+			"min_available_clients": 5,
 			"on_fit_config_fn": fit_config_fn,
 			"initial_parameters": parameters,
 			"evaluate_fn": evaluate_fn,

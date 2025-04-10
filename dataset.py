@@ -101,7 +101,7 @@ def create_train_val_test_split(
 	df = df[df.index.str.startswith(('MAD', 'BCN', 'BOR', 'IST', 'ZUR'))]
 	
 	if debug:
-		df = df.sample(n=40, replace=False)
+		df = df.sample(n=80, replace=False)
 	
 	# Extract patient and center identifiers
 	df['patient_id'] = df.index.to_series().apply(lambda x: x.split('-')[0])
