@@ -175,7 +175,7 @@ def client_fn(context: Context) -> fl.client.Client:
 	
 	# Map partition ID to hospital code
 	hospital_codes = {
-		0: 'MAD', 1: 'BCN', 2: 'BOR', 3: 'IST'
+		0: 'MAD', 1: 'BCN', 2: 'BOR', 3: 'IST', 4: 'ZUR'
 	}
 	hospital = hospital_codes[partition_id_int]
 	
