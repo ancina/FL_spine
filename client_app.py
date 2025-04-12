@@ -98,7 +98,7 @@ class FlowerClient(fl.client.NumPyClient):
 		# Extract configuration
 		server_round = config["server_round"]
 		local_epochs = config["local_epochs"]
-		current_lr = config["local_epochs"]
+		current_lr = config["lr"]
 		use_fedprox = config["use_fedprox"]
 		proximal_mu = config["proximal_mu"]
 		
